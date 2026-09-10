@@ -203,7 +203,33 @@ function vitePluginStorageProxy(): Plugin {
   };
 }
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector(), vitePluginStorageProxy()];
+/**
+ * Only emit the umami analytics tag when its env vars are configured.
+ * Without this guard, the unresolved %VITE_ANALYTICS_*% placeholders leak
+ * into the production HTML and produce a broken /umami request.
+ */
+function vitePluginAnalyticsGuard(): Plugin {
+  return {
+    name: "analytics-html-guard",
+    transformIndexHtml: {
+      order: "pre",
+      handler(html) {
+        const endpoint = process.env.VITE_ANALYTICS_ENDPOINT;
+        const websiteId = process.env.VITE_ANALYTICS_WEBSITE_ID;
+        const tag = /\s*<script defer src="%VITE_ANALYTICS_ENDPOINT%\/umami"[^>]*><\/script>/;
+        if (!endpoint || !websiteId) {
+          return html.replace(tag, "");
+        }
+        return html.replace(
+          tag,
+          ` <script defer src="${endpoint}/umami" data-website-id="${websiteId}"></script>`
+        );
+      },
+    },
+  };
+}
+
+const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector(), vitePluginStorageProxy(), vitePluginAnalyticsGuard()];
 
 export default defineConfig({
   plugins,
